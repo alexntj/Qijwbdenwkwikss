@@ -64,28 +64,23 @@ else
     echo -e "${WHITE}Etapa 1: Conexão com o Dispositivo${NC}"
     echo -e "${YELLOW}O ADB não está conectado. Vamos configurar agora.${NC}\n"
     
-    read -p "IP:PORTA de PAREAMENTO: " PAIR_ADDR
-    read -p "Código de 6 dígitos: " PAIR_CODE
-    echo -e "\n${YELLOW}[*] Pareando dispositivos...${NC}"
-    adb pair $PAIR_ADDR $PAIR_CODE > /dev/null 2>&1
-    
-    read -p "IP:PORTA de CONEXÃO: " CONN_ADDR
-    echo -e "${YELLOW}[*] Estabelecendo conexão segura...${NC}"
-    adb connect $CONN_ADDR > /dev/null 2>&1
-    
-    # Loop de segurança para garantir que o ADB conectou antes de prosseguir
-    while true; do
+    # Loop para garantir que ele peça os dados até conectar
+    while [ "$(adb get-state 2>/dev/null | tr -d '\r\n')" != "device" ]; do
+        read -p "IP:PORTA de PAREAMENTO: " PAIR_ADDR
+        read -p "Código de 6 dígitos: " PAIR_CODE
+        echo -e "\n${YELLOW}[*] Pareando dispositivos...${NC}"
+        adb pair $PAIR_ADDR $PAIR_CODE > /dev/null 2>&1
+        
+        read -p "IP:PORTA de CONEXÃO: " CONN_ADDR
+        echo -e "${YELLOW}[*] Estabelecendo conexão segura...${NC}"
+        adb connect $CONN_ADDR > /dev/null 2>&1
         sleep 1
-        if [ "$(adb get-state 2>/dev/null | tr -d '\r\n')" == "device" ]; then
-            echo -e "${GREEN}[+] Conectado com sucesso!${NC}"
-            break
-        else
-            echo -e "${RED}[!] Falha na conexão. Verifique os dados e tente novamente.${NC}"
-            read -p "Pressione ENTER para tentar novamente..." 
-            read -p "IP:PORTA de CONEXÃO: " CONN_ADDR
-            adb connect $CONN_ADDR > /dev/null 2>&1
+        
+        if [ "$(adb get-state 2>/dev/null | tr -d '\r\n')" != "device" ]; then
+            echo -e "${RED}[!] Falha na conexão. Verifique os dados e tente novamente.${NC}\n"
         fi
     done
+    echo -e "${GREEN}[+] Conectado com sucesso!${NC}"
 fi
 
 HWID=$(adb shell settings get secure android_id 2>/dev/null | tr -d '\r\n')
