@@ -1,210 +1,253 @@
-# GHOST REMOTE - Windows Edition (Fix Túnel ADB)
-Clear-Host
+#!/data/data/com.termux/files/usr/bin/bash
 
-Write-Host "==========================================" -ForegroundColor Cyan
-Write-Host "            GHOST REMOTE SYSTEM           " -ForegroundColor White
-Write-Host "==========================================" -ForegroundColor Cyan
-Start-Sleep -Seconds 1
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+CYAN='\033[0;36m'
+YELLOW='\033[1;33m'
+WHITE='\033[1;37m'
+PURPLE='\033[0;35m'
+NC='\033[0m'
 
-$adbPath = ".\adb.exe"
+clear
 
-if (!(Test-Path $adbPath)) {
-    Write-Host "`n[*] Baixando ADB (Platform-Tools)..." -ForegroundColor Yellow
-    $url = "https://dl.google.com/android/repository/platform-tools-latest-windows.zip"
-    Invoke-WebRequest -Uri $url -OutFile "platform-tools.zip"
-    Expand-Archive -Path "platform-tools.zip" -DestinationPath ".\" -Force
-    Copy-Item -Path ".\platform-tools\adb.exe" -Destination ".\adb.exe" -Force
-    Copy-Item -Path ".\platform-tools\AdbWinApi.dll" -Destination ".\AdbWinApi.dll" -Force
-    Copy-Item -Path ".\platform-tools\AdbWinUsbApi.dll" -Destination ".\AdbWinUsbApi.dll" -Force
-    Remove-Item -Path "platform-tools.zip" -Force
-    Remove-Item -Path ".\platform-tools" -Recurse -Force
-}
+echo -e "${GREEN}"
+cat << "EOF"
+  ██████╗ ██╗  ██╗ ██████╗ ███████╗████████╗
+ ██╔════╝ ██║  ██║██╔═══██╗██╔════╝╚══██╔══╝
+ ██║  ███╗███████║██║   ██║███████╗   ██║   
+ ██║   ██║██╔══██║██║   ██║╚════██║   ██║   
+ ╚██████╔╝██║  ██║╚██████╔╝███████║   ██║   
+  ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝   ╚═╝   
+EOF
+echo -e "${WHITE}          R E M O T E   S Y S T E M${NC}"
+echo -e "${PURPLE}==========================================${NC}"
+sleep 2
 
-Write-Host "`n[*] Verificando celular via USB..." -ForegroundColor Yellow
-$adbState = & $adbPath get-state 2>$null
+echo -e "\n${YELLOW}[*] Verificando dependências do sistema...${NC}"
 
-if ($adbState -notmatch "device") {
-    Write-Host "[!] Celular não detectado." -ForegroundColor Red
-    Write-Host "Pressione ENTER para tentar de novo..." -ForegroundColor White
-    Read-Host | Out-Null
-    $adbState = & $adbPath get-state 2>$null
-    if ($adbState -notmatch "device") {
-        Write-Host "[!] Falha na conexão. Verifique o cabo." -ForegroundColor Red
-        Exit
+if ! command -v adb &> /dev/null || ! command -v curl &> /dev/null; then
+    echo -e "${YELLOW}[*] Instalando pacotes necessários (android-tools, curl)...${NC}"
+    pkg update -y &> /dev/null
+    pkg install android-tools curl -y &> /dev/null
+    echo -e "${GREEN}[+] Dependências instaladas com sucesso.${NC}"
+else
+    echo -e "${GREEN}[+] Dependências OK (adb e curl encontrados).${NC}"
+fi
+
+echo -e "\n${YELLOW}[*] Instalando interface de controle...${NC}"
+
+cat > /data/data/com.termux/files/usr/bin/ghost << 'GHOST_EOF'
+#!/data/data/com.termux/files/usr/bin/bash
+
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+CYAN='\033[0;36m'
+YELLOW='\033[1;33m'
+WHITE='\033[1;37m'
+PURPLE='\033[0;35m'
+NC='\033[0m'
+
+declare -A ESTADO
+for i in {1..20}; do ESTADO[$i]=0; done
+
+clear
+echo -e "${PURPLE}==========================================${NC}"
+echo -e "${WHITE}            AUTENTICAÇÃO GHOST            ${NC}"
+echo -e "${PURPLE}==========================================${NC}\n"
+
+ADB_STATE=$(adb get-state 2>/dev/null | tr -d '\r\n')
+
+if [ "$ADB_STATE" == "device" ]; then
+    echo -e "${GREEN}[+] Sistema ADB já conectado.${NC}"
+    sleep 1
+else
+    echo -e "${WHITE}Etapa 1: Conexão com o Dispositivo${NC}"
+    echo -e "${YELLOW}O ADB não está conectado. Vamos configurar agora.${NC}\n"
+    
+    echo -n "IP:PORTA de PAREAMENTO: "
+    read -r PAIR_ADDR < /dev/tty
+    
+    echo -n "Código de 6 dígitos: "
+    read -r PAIR_CODE < /dev/tty
+    
+    echo -e "\n${YELLOW}[*] Pareando dispositivos...${NC}"
+    adb pair $PAIR_ADDR $PAIR_CODE
+    
+    echo -n "IP:PORTA de CONEXÃO: "
+    read -r CONN_ADDR < /dev/tty
+    
+    echo -e "${YELLOW}[*] Estabelecendo conexão segura...${NC}"
+    adb connect $CONN_ADDR
+    sleep 1
+    
+    if [ "$(adb get-state 2>/dev/null | tr -d '\r\n')" != "device" ]; then
+        echo -e "${RED}[!] Falha na conexão. Verifique os dados e tente novamente.${NC}"
+        exit 1
+    fi
+fi
+
+HWID=$(adb shell settings get secure android_id 2>/dev/null | tr -d '\r\n')
+if [ -z "$HWID" ] || [ "$HWID" == "null" ]; then
+    echo -e "${RED}[!] Falha ao obter o Hardware ID. Verifique o ADB.${NC}"
+    exit 1
+fi
+
+clear
+echo -e "${PURPLE}==========================================${NC}"
+echo -e "${WHITE}             VALIDAÇÃO DE LICENÇA         ${NC}"
+echo -e "${PURPLE}==========================================${NC}\n"
+
+echo -n "Insira sua Key de Acesso: "
+read -r USER_KEY < /dev/tty
+
+echo -e "\n${YELLOW}[*] Comunicando com o servidor...${NC}"
+
+K_API=$(echo "aHR0cHM6Ly9nZXJhZG9yLWtleXMuZGUuZGVwbGV4by5jb20vYXBpL3ZhbGlkYXRl" | base64 -d)
+K_SLG=$(echo "c3RpcmxheC1tb2R6LW0xbngtb2ZpY2lhbA==" | base64 -d)
+K_VER=$(echo "Mi4w" | base64 -d)
+
+RESPONSE=$(curl -s -X POST "$K_API" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d "{\"key\":\"$USER_KEY\",\"hwid\":\"$HWID\",\"appSlug\":\"$K_SLG\",\"appVersion\":\"$K_VER\"}")
+
+SUCCESS=$(echo "$RESPONSE" | grep -o '"success":[^,]*' | cut -d':' -f2 | tr -d ' ')
+STATUS=$(echo "$RESPONSE" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+EXPIRES_AT=$(echo "$RESPONSE" | grep -o '"expiresAt":[^,]*' | cut -d':' -f2 | tr -d ' ')
+
+if [ "$SUCCESS" != "true" ] || [ "$STATUS" != "active" ]; then
+    echo -e "${RED}[!] Acesso Negado. Key inválida ou expirada.${NC}"
+    sleep 3
+    exit 1
+fi
+
+NOW=$(date +%s)
+EXPIRES_SEC=$((EXPIRES_AT / 1000))
+DIFF=$((EXPIRES_SEC - NOW))
+
+if [ $DIFF -gt 0 ]; then
+    DIAS=$((DIFF / 86400))
+    HORAS=$(((DIFF % 86400) / 3600))
+    echo -e "${GREEN}[+] Acesso Autorizado!${NC}"
+    echo -e "${GREEN}[+] Expira em: ${DIAS} dias e ${HORAS} horas.${NC}"
+    sleep 2
+else
+    echo -e "${RED}[!] Licença expirada.${NC}"
+    sleep 3
+    exit 1
+fi
+
+clear
+echo -e "${PURPLE}==========================================${NC}"
+echo -e "${WHITE}             INJEÇÃO DO MÓDULO            ${NC}"
+echo -e "${PURPLE}==========================================${NC}\n"
+echo -e "${WHITE}Abra o Zayon, conecte o ADB e clique em INJETAR."
+echo -e "Após abrir o Free Fire, retorne a esta tela.${NC}\n"
+echo -n "Módulo injetado e FF aberto? (s/n): "
+read -r INJETADO < /dev/tty
+
+if [ "$INJETADO" != "s" ]; then
+    echo -e "${RED}[!] Operação cancelada.${NC}"
+    exit 1
+fi
+
+while true; do
+    clear
+    echo -e "${PURPLE}==========================================${NC}"
+    echo -e "${WHITE}              GHOST REMOTE                ${NC}"
+    echo -e "${PURPLE}==========================================${NC}\n"
+    
+    status() {
+        if [ "${ESTADO[$1]}" -eq 1 ]; then echo -e "${GREEN}[ON]${NC}"; fi
     }
-}
-Write-Host "[+] Celular conectado!" -ForegroundColor Green
 
-Write-Host "[*] Gerando Hardware ID do PC..." -ForegroundColor Yellow
-$biosUuid = (Get-CimInstance Win32_ComputerSystemProduct).UUID
-if ([string]::IsNullOrEmpty($biosUuid) -or $biosUuid -eq "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF") {
-    $cpuId = (Get-CimInstance Win32_Processor).ProcessorId
-    $pcName = $env:COMPUTERNAME
-    $biosUuid = "$cpuId-$pcName"
-}
-$sha256 = [System.Security.Cryptography.SHA256]::Create()
-$hashBytes = $sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($biosUuid))
-$HWID = ([System.BitConverter]::ToString($hashBytes)).Replace("-", "").Substring(0, 16)
-Write-Host "[+] Hardware ID capturado." -ForegroundColor Green
-
-Clear-Host
-Write-Host "==========================================" -ForegroundColor Cyan
-Write-Host "             VALIDAÇÃO DE LICENÇA         " -ForegroundColor White
-Write-Host "==========================================" -ForegroundColor Cyan
-Write-Host ""
-
-$USER_KEY = Read-Host "Insira sua Key de Acesso"
-Write-Host "`n[*] Comunicando com o servidor..." -ForegroundColor Yellow
-
-$K_API = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("aHR0cHM6Ly9nZXJhZG9yLWtleXMuZGUuZGVwbGV4by5jb20vYXBpL3ZhbGlkYXRl"))
-$K_SLG = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("c3RpcmxheC1tb2R6LW0xbngtb2ZpY2lhbA=="))
-$K_VER = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("Mi4w"))
-
-$body = @{
-    key = $USER_KEY
-    hwid = $HWID
-    appSlug = $K_SLG
-    appVersion = $K_VER
-} | ConvertTo-Json
-
-try {
-    $response = Invoke-RestMethod -Uri $K_API -Method Post -Body $body -ContentType "application/json"
-} catch {
-    Write-Host "[!] Falha na conexão com a API." -ForegroundColor Red
-    Exit
-}
-
-if ($response.success -ne $true -or $response.status -ne "active") {
-    Write-Host "[!] Acesso Negado. Key inválida ou expirada." -ForegroundColor Red
-    Start-Sleep -Seconds 3
-    Exit
-}
-
-$expiresAt = $response.expiresAt / 1000
-$now = [DateTimeOffset]::Now.ToUnixTimeSeconds()
-$diff = $expiresAt - $now
-
-if ($diff -gt 0) {
-    $dias = [math]::Floor($diff / 86400)
-    $horas = [math]::Floor(($diff % 86400) / 3600)
-    Write-Host "[+] Acesso Autorizado!" -ForegroundColor Green
-    Write-Host "[+] Expira em: $dias dias e $horas horas." -ForegroundColor Green
-    Start-Sleep -Seconds 2
-} else {
-    Write-Host "[!] Licença expirada." -ForegroundColor Red
-    Exit
-}
-
-Clear-Host
-Write-Host "==========================================" -ForegroundColor Cyan
-Write-Host "             INJEÇÃO DO MÓDULO            " -ForegroundColor White
-Write-Host "==========================================" -ForegroundColor Cyan
-Write-Host "Abra o Zayon no celular, conecte o cabo USB e clique em INJETAR."
-Write-Host "Após o Free Fire abrir, retorne ao PC."
-Write-Host ""
-do {
-    $INJETADO = Read-Host "Módulo injetado e FF aberto? (s/n)"
-} while ($INJETADO -notmatch "^[sn]$")
-
-if ($INJETADO -ne "s") {
-    Write-Host "[!] Operação cancelada." -ForegroundColor Red
-    Exit
-}
-
-$ESTADO = @{}
-1..20 | ForEach-Object { $ESTADO[$_] = 0 }
-
-while ($true) {
-    Clear-Host
-    Write-Host "==========================================" -ForegroundColor Cyan
-    Write-Host "              GHOST REMOTE                " -ForegroundColor White
-    Write-Host "==========================================" -ForegroundColor Cyan
+    echo -e "${CYAN}┌── AIMBOTS ─────────────────────────────┐${NC}"
+    echo -e "  [1] HS Cabeça (Head Priority)  $(status 1)"
+    echo -e "  [2] Drag Neck (Pescoço)        $(status 2)"
     
-    function Show-Status($i) {
-        if ($ESTADO[$i] -eq 1) { return "[ON]" } else { return "" }
-    }
+    echo -e "\n${CYAN}┌── ESP (VISÃO) ─────────────────────────┐${NC}"
+    echo -e "  [3] ESP Box (Caixa)            $(status 3)"
+    echo -e "  [4] ESP Linha (Topo)           $(status 4)"
+    echo -e "  [5] ESP Nickname               $(status 5)"
+    echo -e "  [6] ESP Vida (Health)          $(status 6)"
+    echo -e "  [7] Esqueleto Branco           $(status 7)"
+    echo -e "  [8] Distância em Metros        $(status 8)"
 
-    Write-Host "--- AIMBOTS ---" -ForegroundColor White
-    Write-Host "  [1] HS Cabeça (Head Priority)  $(Show-Status 1)"
-    Write-Host "  [2] Drag Neck (Pescoço)        $(Show-Status 2)"
+    echo -e "\n${CYAN}┌── OUTRAS FUNÇÕES ──────────────────────┐${NC}"
+    echo -e "  [9] FOV Perfeito               $(status 9)"
+    echo -e "  [10] Fast Switch               $(status 10)"
+    echo -e "  [11] No Recoil (Real)          $(status 11)"
+    echo -e "${CYAN}└────────────────────────────────────────┘${NC}"
     
-    Write-Host "`n--- ESP (VISÃO) ---" -ForegroundColor White
-    Write-Host "  [3] ESP Box (Caixa)            $(Show-Status 3)"
-    Write-Host "  [4] ESP Linha (Topo)           $(Show-Status 4)"
-    Write-Host "  [5] ESP Nickname               $(Show-Status 5)"
-    Write-Host "  [6] ESP Vida (Health)          $(Show-Status 6)"
-    Write-Host "  [7] Esqueleto Branco           $(Show-Status 7)"
-    Write-Host "  [8] Distância em Metros        $(Show-Status 8)"
+    echo -e "\n${RED}┌── DESCONECTAR / LIMPAR (BYPASS) ───────┐${NC}"
+    echo -e "  [99] Limpar arquivos e desinstalar Zayon"
+    echo -e "${RED}└────────────────────────────────────────┘${NC}"
 
-    Write-Host "`n--- OUTRAS FUNÇÕES ---" -ForegroundColor White
-    Write-Host "  [9] FOV Perfeito               $(Show-Status 9)"
-    Write-Host "  [10] Fast Switch               $(Show-Status 10)"
-    Write-Host "  [11] No Recoil (Real)          $(Show-Status 11)"
-    
-    Write-Host "`n--- DESCONECTAR / LIMPAR (BYPASS) ---" -ForegroundColor Red
-    Write-Host "  [99] Limpar arquivos e desinstalar Zayon"
-    
-    Write-Host "`n  [0] Encerrar Sessão"
-    Write-Host ""
-    $FUNC_OPT = Read-Host "  » Selecione"
+    echo -e "\n  [0] Encerrar Sessão"
+    echo -e ""
+    echo -n "  » Selecione: "
+    read -r FUNC_OPT < /dev/tty
 
-    if ($FUNC_OPT -eq "99") {
-        Write-Host "`n[!] AVISO: Isso vai desligar tudo e desinstalar o Zayon." -ForegroundColor Red
-        $CONFIRMA = Read-Host "Tem certeza? (s/n)"
+    if [ "$FUNC_OPT" == "99" ]; then
+        echo -e "\n${RED}[!] AVISO: Isso vai desligar tudo e desinstalar o Zayon.${NC}"
+        echo -n "Tem certeza? (s/n): "
+        read -r CONFIRMA < /dev/tty
         
-        if ($CONFIRMA -eq "s") {
-            Write-Host "`n[*] Desativando todas as funções..." -ForegroundColor Yellow
-            # Usando CMD direto no celular
-            & cmd.exe /c "$adbPath shell `"for i in 1 2 3 5 6 7 9 10 11 14 15; do curl -s http://127.0.0.1:7755/item`$i/desativar > /dev/null; done`""
+        if [ "$CONFIRMA" == "s" ]; then
+            echo -e "\n${YELLOW}[*] Desativando todas as funções...${NC}"
+            for i in 1 2 3 5 6 7 9 10 11 14 15; do
+                curl -s -H "Connection: close" --max-time 1 "http://127.0.0.1:7755/item$i/desativar" > /dev/null
+            done
 
-            Write-Host "[*] Fechando Free Fire..." -ForegroundColor Yellow
-            & $adbPath shell am force-stop com.dts.freefireth
+            echo -e "${YELLOW}[*] Fechando o Free Fire...${NC}"
+            adb shell am force-stop com.dts.freefireth
             
-            Write-Host "[*] Apagando arquivos do cheat..." -ForegroundColor Yellow
-            $files = "Assembly-CSharp-patch.bytes","xyz.guard","localConfig.json","auth.txt","ffrtc_log.txt","ShaderStripSettings","reportnew.db"
-            foreach ($f in $files) {
-                & $adbPath shell rm -f "/sdcard/Android/data/com.dts.freefireth/files/$f"
-            }
+            echo -e "${YELLOW}[*] Apagando os arquivos do cheat...${NC}"
+            adb shell "rm -f /sdcard/Android/data/com.dts.freefireth/files/Assembly-CSharp-patch.bytes /sdcard/Android/data/com.dts.freefireth/files/xyz.guard /sdcard/Android/data/com.dts.freefireth/files/localConfig.json /sdcard/Android/data/com.dts.freefireth/files/auth.txt /sdcard/Android/data/com.dts.freefireth/files/ffrtc_log.txt /sdcard/Android/data/com.dts.freefireth/files/ShaderStripSettings /sdcard/Android/data/com.dts.freefireth/files/reportnew.db"
             
-            Write-Host "[*] Desinstalando Zayon..." -ForegroundColor Yellow
-            & $adbPath shell am force-stop com.zyron
-            & $adbPath shell pm uninstall com.zyron
+            echo -e "${YELLOW}[*] Desinstalando o app Zayon...${NC}"
+            adb shell am force-stop com.zyron
+            adb shell pm uninstall com.zyron
             
-            Write-Host "`n[+] Bypass concluído!" -ForegroundColor Green
-            Start-Sleep -Seconds 3
-            Exit
-        }
-    }
+            echo -e "\n${GREEN}[+] Bypass concluído!${NC}"
+            sleep 3
+            exit 0
+        fi
+    fi
 
-    $endpoint = ""
-    $name = ""
-    switch ($FUNC_OPT) {
-        "1" { $endpoint = "item1"; $name = "HS Cabeça" }
-        "2" { $endpoint = "item5"; $name = "Drag Neck" }
-        "3" { $endpoint = "item3"; $name = "ESP Box" }
-        "4" { $endpoint = "item2"; $name = "ESP Linha" }
-        "5" { $endpoint = "item6"; $name = "ESP Nickname" }
-        "6" { $endpoint = "item7"; $name = "ESP Vida" }
-        "7" { $endpoint = "item9"; $name = "Esqueleto Branco" }
-        "8" { $endpoint = "item10"; $name = "Distância" }
-        "9" { $endpoint = "item11"; $name = "FOV Perfeito" }
-        "10" { $endpoint = "item14"; $name = "Fast Switch" }
-        "11" { $endpoint = "item15"; $name = "No Recoil" }
-        "0" { Clear-Host; Exit }
-        default { continue }
-    }
+    case $FUNC_OPT in
+        1) ENDPOINT="item1"; NAME="HS Cabeça" ;;
+        2) ENDPOINT="item5"; NAME="Drag Neck" ;;
+        3) ENDPOINT="item3"; NAME="ESP Box" ;;
+        4) ENDPOINT="item2"; NAME="ESP Linha" ;;
+        5) ENDPOINT="item6"; NAME="ESP Nickname" ;;
+        6) ENDPOINT="item7"; NAME="ESP Vida" ;;
+        7) ENDPOINT="item9"; NAME="Esqueleto Branco" ;;
+        8) ENDPOINT="item10"; NAME="Distância" ;;
+        9) ENDPOINT="item11"; NAME="FOV Perfeito" ;;
+        10) ENDPOINT="item14"; NAME="Fast Switch" ;;
+        11) ENDPOINT="item15"; NAME="No Recoil" ;;
+        0) clear; exit 0 ;;
+        *) continue ;;
+    esac
 
-    Write-Host "`n[*] Sincronizando com o módulo..." -ForegroundColor Yellow
+    echo -e "\n${YELLOW}[*] Sincronizando com o módulo...${NC}"
     
-    # AQUI ESTÁ A MÁGICA: Manda o comando de dentro do próprio celular
-    if ($ESTADO[$FUNC_OPT] -eq 0) {
-        & cmd.exe /c "$adbPath shell `"curl -s http://127.0.0.1:7755/$endpoint`"" | Out-Null
-        $ESTADO[$FUNC_OPT] = 1
-        Write-Host "[+] $name : ATIVADO" -ForegroundColor Green
-    } else {
-        & cmd.exe /c "$adbPath shell `"curl -s http://127.0.0.1:7755/$endpoint/desativar`"" | Out-Null
-        $ESTADO[$FUNC_OPT] = 0
-        Write-Host "[-] $name : DESATIVADO" -ForegroundColor Red
-    }
-    Start-Sleep -Seconds 1
-}
+    if [ "${ESTADO[$FUNC_OPT]}" -eq 0 ]; then
+        curl -s -H "Connection: close" --max-time 2 "http://127.0.0.1:7755/$ENDPOINT" > /dev/null
+        ESTADO[$FUNC_OPT]=1
+        echo -e "${GREEN}[+] $NAME: ATIVADO${NC}"
+    else
+        curl -s -H "Connection: close" --max-time 2 "http://127.0.0.1:7755/$ENDPOINT/desativar" > /dev/null
+        ESTADO[$FUNC_OPT]=0
+        echo -e "${RED}[-] $NAME: DESATIVADO${NC}"
+    fi
+    sleep 1.5
+done
+GHOST_EOF
+
+chmod +x /data/data/com.termux/files/usr/bin/ghost
+ghost
+ENDSCRIPT
+chmod +x install.sh
+./install.sh
