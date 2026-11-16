@@ -6,51 +6,50 @@ Write-Host "            GHOST REMOTE SYSTEM           " -ForegroundColor White
 Write-Host "==========================================" -ForegroundColor Cyan
 Start-Sleep -Seconds 1
 
-# 1. Verifica e baixa o ADB
-Write-Host "`n[*] Verificando ADB..." -ForegroundColor Yellow
 $adbPath = ".\adb.exe"
 
+# 1. Verifica e baixa o ADB
 if (!(Test-Path $adbPath)) {
-    Write-Host "[*] Baixando ADB (Platform-Tools)..." -ForegroundColor Yellow
+    Write-Host "`n[*] Baixando ADB (Platform-Tools)..." -ForegroundColor Yellow
     $url = "https://dl.google.com/android/repository/platform-tools-latest-windows.zip"
     Invoke-WebRequest -Uri $url -OutFile "platform-tools.zip"
     Expand-Archive -Path "platform-tools.zip" -DestinationPath ".\" -Force
-    
     Copy-Item -Path ".\platform-tools\adb.exe" -Destination ".\adb.exe" -Force
     Copy-Item -Path ".\platform-tools\AdbWinApi.dll" -Destination ".\AdbWinApi.dll" -Force
     Copy-Item -Path ".\platform-tools\AdbWinUsbApi.dll" -Destination ".\AdbWinUsbApi.dll" -Force
     Remove-Item -Path "platform-tools.zip" -Force
     Remove-Item -Path ".\platform-tools" -Recurse -Force
-    Write-Host "[+] ADB instalado." -ForegroundColor Green
-} else {
-    Write-Host "[+] ADB OK." -ForegroundColor Green
 }
 
 # 2. Verifica dispositivo
+Write-Host "`n[*] Verificando celular via USB..." -ForegroundColor Yellow
 $adbState = & $adbPath get-state 2>$null
+
 if ($adbState -notmatch "device") {
-    Write-Host "`n[!] Celular não detectado via USB." -ForegroundColor Red
-    Write-Host "[*] Ative a Depuração USB e conecte o cabo." -ForegroundColor Yellow
-    Write-Host "[*] ATENÇÃO: Olhe a tela do celular e clique em 'Permitir' se aparecer a janela de depuração USB!" -ForegroundColor Magenta
+    Write-Host "[!] Celular não detectado." -ForegroundColor Red
     Write-Host "Pressione ENTER para tentar de novo..." -ForegroundColor White
     Read-Host | Out-Null
-    
     $adbState = & $adbPath get-state 2>$null
     if ($adbState -notmatch "device") {
-        Write-Host "[!] Falha na conexão. Verifique o cabo e a autorização no celular." -ForegroundColor Red
+        Write-Host "[!] Falha na conexão. Verifique o cabo e a autorização." -ForegroundColor Red
         Exit
     }
 }
+Write-Host "[+] Celular conectado!" -ForegroundColor Green
 
-# 3. Pega HWID (Com limpeza forçada de string)
+# 3. Pega HWID (Do jeito bruto pro Windows)
 Write-Host "[*] Coletando Hardware ID..." -ForegroundColor Yellow
-$rawHWID = & $adbPath shell settings get secure android_id
-$HWID = ($rawHWID | Out-String).Trim()
+$HWID = cmd /c "$adbPath shell settings get secure android_id 2>nul"
+$HWID = $HWID.Trim() -replace "`r", "" -replace "`n", ""
 
 if ([string]::IsNullOrEmpty($HWID) -or $HWID -eq "null") {
-    Write-Host "[!] Falha ao obter o Hardware ID. O celular autorizou a depuração USB?" -ForegroundColor Red
+    Write-Host "[!] ERRO CRITICO: O Windows nao conseguiu ler o ID do celular." -ForegroundColor Red
+    Write-Host "[DEBUG] O comando retornou: '$HWID'" -ForegroundColor DarkGray
+    Write-Host "Certifique-se de que a Depuracao USB esta ATIVA e a tela do celular foi DESBLOQUEADA." -ForegroundColor Yellow
     Exit
 }
+
+Write-Host "[+] Hardware ID capturado com sucesso." -ForegroundColor Green
 
 # 4. Valida a Key
 Clear-Host
@@ -62,7 +61,6 @@ Write-Host ""
 $USER_KEY = Read-Host "Insira sua Key de Acesso"
 Write-Host "`n[*] Comunicando com o servidor..." -ForegroundColor Yellow
 
-# Desofuscação (Base64)
 $K_API = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("aHR0cHM6Ly9nZXJhZG9yLWtleXMuZGUuZGVwbGV4by5jb20vYXBpL3ZhbGlkYXRl"))
 $K_SLG = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("c3RpcmxheC1tb2R6LW0xbngtb2ZpY2lhbA=="))
 $K_VER = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("Mi4w"))
@@ -119,7 +117,6 @@ if ($INJETADO -ne "s") {
     Exit
 }
 
-# Mágica do PC: Túnel reverso do ADB
 & $adbPath forward tcp:7755 tcp:7755 | Out-Null
 $ESTADO = @{}
 1..20 | ForEach-Object { $ESTADO[$_] = 0 }
