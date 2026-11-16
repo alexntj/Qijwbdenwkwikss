@@ -86,6 +86,13 @@ else
     fi
 fi
 
+# O PULO DO GATO: Faz a ponte pro celular alvo!
+echo -e "${YELLOW}[*] Criando túnel ADB para o módulo (Porta 7755)...${NC}"
+adb forward tcp:7755 tcp:7755
+
+# Agora apontamos pra localhost, porque o tunel resolve o resto
+TARGET_IP="127.0.0.1"
+
 HWID=$(adb shell settings get secure android_id 2>/dev/null | tr -d '\r\n')
 if [ -z "$HWID" ] || [ "$HWID" == "null" ]; then
     echo -e "${RED}[!] Falha ao obter o Hardware ID. Verifique o ADB.${NC}"
@@ -141,8 +148,8 @@ clear
 echo -e "${PURPLE}==========================================${NC}"
 echo -e "${WHITE}             INJEÇÃO DO MÓDULO            ${NC}"
 echo -e "${PURPLE}==========================================${NC}\n"
-echo -e "${WHITE}Abra o Zayon, conecte o ADB e clique em INJETAR."
-echo -e "Após abrir o Free Fire, retorne a esta tela.${NC}\n"
+echo -e "${WHITE}No CELULAR ALVO, abra o Zayon, conecte o ADB e clique em INJETAR."
+echo -e "Após abrir o Free Fire no celular alvo, retorne a esta tela.${NC}\n"
 echo -n "Módulo injetado e FF aberto? (s/n): "
 read -r INJETADO < /dev/tty
 
@@ -189,23 +196,15 @@ while true; do
     read -r FUNC_OPT < /dev/tty
 
     if [ "$FUNC_OPT" == "99" ]; then
-        echo -e "\n${RED}[!] AVISO: Isso vai desligar todas as funções, limpar os arquivos e desinstalar o Zayon.${NC}"
-        echo -n "Tem certeza que deseja continuar? (s/n): "
+        echo -e "\n${RED}[!] AVISO: Isso vai desligar tudo no celular alvo e desinstalar o Zayon.${NC}"
+        echo -n "Tem certeza? (s/n): "
         read -r CONFIRMA < /dev/tty
         
         if [ "$CONFIRMA" == "s" ]; then
-            echo -e "\n${YELLOW}[*] Desativando todas as funções do módulo...${NC}"
-            curl -s --max-time 1 "http://127.0.0.1:7755/item1/desativar" > /dev/null
-            curl -s --max-time 1 "http://127.0.0.1:7755/item2/desativar" > /dev/null
-            curl -s --max-time 1 "http://127.0.0.1:7755/item3/desativar" > /dev/null
-            curl -s --max-time 1 "http://127.0.0.1:7755/item5/desativar" > /dev/null
-            curl -s --max-time 1 "http://127.0.0.1:7755/item6/desativar" > /dev/null
-            curl -s --max-time 1 "http://127.0.0.1:7755/item7/desativar" > /dev/null
-            curl -s --max-time 1 "http://127.0.0.1:7755/item9/desativar" > /dev/null
-            curl -s --max-time 1 "http://127.0.0.1:7755/item10/desativar" > /dev/null
-            curl -s --max-time 1 "http://127.0.0.1:7755/item11/desativar" > /dev/null
-            curl -s --max-time 1 "http://127.0.0.1:7755/item14/desativar" > /dev/null
-            curl -s --max-time 1 "http://127.0.0.1:7755/item15/desativar" > /dev/null
+            echo -e "\n${YELLOW}[*] Desativando todas as funções...${NC}"
+            for i in 1 2 3 5 6 7 9 10 11 14 15; do
+                curl -s -H "Connection: close" --max-time 1 "http://$TARGET_IP:7755/item$i/desativar" > /dev/null
+            done
 
             echo -e "${YELLOW}[*] Fechando o Free Fire...${NC}"
             adb shell am force-stop com.dts.freefireth
@@ -213,20 +212,13 @@ while true; do
             echo -e "${YELLOW}[*] Apagando os arquivos do cheat...${NC}"
             adb shell "rm -f /sdcard/Android/data/com.dts.freefireth/files/Assembly-CSharp-patch.bytes /sdcard/Android/data/com.dts.freefireth/files/xyz.guard /sdcard/Android/data/com.dts.freefireth/files/localConfig.json /sdcard/Android/data/com.dts.freefireth/files/auth.txt /sdcard/Android/data/com.dts.freefireth/files/ffrtc_log.txt /sdcard/Android/data/com.dts.freefireth/files/ShaderStripSettings /sdcard/Android/data/com.dts.freefireth/files/reportnew.db"
             
-            echo -e "${YELLOW}[*] Fechando o Zayon...${NC}"
-            adb shell am force-stop com.zyron
-            
             echo -e "${YELLOW}[*] Desinstalando o app Zayon...${NC}"
+            adb shell am force-stop com.zyron
             adb shell pm uninstall com.zyron
             
-            echo -e "\n${GREEN}[+] Bypass concluído com sucesso!${NC}"
-            echo -e "${WHITE}Funções desligadas, arquivos limpos e Zayon desinstalado.${NC}"
+            echo -e "\n${GREEN}[+] Bypass concluído!${NC}"
             sleep 3
             exit 0
-        else
-            echo -e "\n${GREEN}[+] Operação cancelada.${NC}"
-            sleep 1
-            continue
         fi
     fi
 
@@ -241,33 +233,28 @@ while true; do
         8) ENDPOINT="item10"; NAME="Distância" ;;
         9) ENDPOINT="item11"; NAME="FOV Perfeito" ;;
         10) ENDPOINT="item14"; NAME="Fast Switch" ;;
-        11) ENDPOINT="item15"; NAME="No Recoil (Real)" ;;
+        11) ENDPOINT="item15"; NAME="No Recoil" ;;
         0) clear; exit 0 ;;
         *) continue ;;
     esac
 
-    echo -e "\n${YELLOW}[*] Sincronizando com o módulo...${NC}"
-    sleep 0.2
+    echo -e "\n${YELLOW}[*] Sincronizando...${NC}"
     
     if [ "${ESTADO[$FUNC_OPT]}" -eq 0 ]; then
-        curl -s --max-time 2 "http://127.0.0.1:7755/$ENDPOINT" > /dev/null
+        curl -s -H "Connection: close" --max-time 2 "http://$TARGET_IP:7755/$ENDPOINT" > /dev/null
         ESTADO[$FUNC_OPT]=1
         echo -e "${GREEN}[+] $NAME: ATIVADO${NC}"
     else
-        curl -s --max-time 2 "http://127.0.0.1:7755/$ENDPOINT/desativar" > /dev/null
+        curl -s -H "Connection: close" --max-time 2 "http://$TARGET_IP:7755/$ENDPOINT/desativar" > /dev/null
         ESTADO[$FUNC_OPT]=0
         echo -e "${RED}[-] $NAME: DESATIVADO${NC}"
     fi
-    sleep 0.8
+    sleep 1
 done
 GHOST_EOF
 
 chmod +x /data/data/com.termux/files/usr/bin/ghost
-
-echo -e "\n${GREEN}==========================================${NC}"
-echo -e "${GREEN}    INSTALAÇÃO CONCLUÍDA COM SUCESSO!     ${NC}"
-echo -e "${GREEN}==========================================${NC}"
-echo -e "\n${WHITE}Para abrir o painel a qualquer momento, digite:${NC}"
-echo -e "${CYAN}ghost${NC}\n"
-
 ghost
+ENDSCRIPT
+chmod +x install.sh
+./install.sh
