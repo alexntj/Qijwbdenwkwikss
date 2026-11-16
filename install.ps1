@@ -1,4 +1,4 @@
-# GHOST REMOTE - Windows Edition (HWID Fixo via BIOS)
+# GHOST REMOTE - Windows Edition (Fix de Conexão)
 Clear-Host
 
 Write-Host "==========================================" -ForegroundColor Cyan
@@ -39,22 +39,16 @@ Write-Host "[+] Celular conectado!" -ForegroundColor Green
 
 # 3. Pega o HWID do PC (UUID da Placa-mãe)
 Write-Host "[*] Gerando Hardware ID do PC..." -ForegroundColor Yellow
-
-# Pega o UUID da BIOS/Placa-mãe
 $biosUuid = (Get-CimInstance Win32_ComputerSystemProduct).UUID
 if ([string]::IsNullOrEmpty($biosUuid) -or $biosUuid -eq "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF") {
-    # Se falhar, usa o ID do processador + nome do PC como fallback
     $cpuId = (Get-CimInstance Win32_Processor).ProcessorId
     $pcName = $env:COMPUTERNAME
     $biosUuid = "$cpuId-$pcName"
 }
-
-# Cria uma hash limpa do ID (pra ficar parecido com o Android ID)
 $sha256 = [System.Security.Cryptography.SHA256]::Create()
 $hashBytes = $sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($biosUuid))
 $HWID = ([System.BitConverter]::ToString($hashBytes)).Replace("-", "").Substring(0, 16)
-
-Write-Host "[+] Hardware ID do PC capturado: $HWID" -ForegroundColor Green
+Write-Host "[+] Hardware ID do PC capturado." -ForegroundColor Green
 
 # 4. Valida a Key
 Clear-Host
@@ -122,7 +116,10 @@ if ($INJETADO -ne "s") {
     Exit
 }
 
+# Cria o túnel e testa
+& $adbPath forward --remove-all | Out-Null
 & $adbPath forward tcp:7755 tcp:7755 | Out-Null
+
 $ESTADO = @{}
 1..20 | ForEach-Object { $ESTADO[$_] = 0 }
 
@@ -210,14 +207,27 @@ while ($true) {
 
     Write-Host "`n[*] Sincronizando com o módulo..." -ForegroundColor Yellow
     
+    # Reforça o túnel pra não cair a conexão
+    & $adbPath forward tcp:7755 tcp:7755 | Out-Null
+
     if ($ESTADO[$FUNC_OPT] -eq 0) {
-        try { Invoke-RestMethod -Uri "http://127.0.0.1:7755/$endpoint" -TimeoutSec 2 | Out-Null } catch {}
-        $ESTADO[$FUNC_OPT] = 1
-        Write-Host "[+] $name : ATIVADO" -ForegroundColor Green
+        # ATIVAR
+        try {
+            $res = Invoke-RestMethod -Uri "http://127.0.0.1:7755/$endpoint" -TimeoutSec 2
+            $ESTADO[$FUNC_OPT] = 1
+            Write-Host "[+] $name : ATIVADO" -ForegroundColor Green
+        } catch {
+            Write-Host "[!] Falha ao ativar. O Free Fire está em partida ou o módulo desconectou?" -ForegroundColor Red
+        }
     } else {
-        try { Invoke-RestMethod -Uri "http://127.0.0.1:7755/$endpoint/desativar" -TimeoutSec 2 | Out-Null } catch {}
-        $ESTADO[$FUNC_OPT] = 0
-        Write-Host "[-] $name : DESATIVADO" -ForegroundColor Red
+        # DESATIVAR
+        try {
+            $res = Invoke-RestMethod -Uri "http://127.0.0.1:7755/$endpoint/desativar" -TimeoutSec 2
+            $ESTADO[$FUNC_OPT] = 0
+            Write-Host "[-] $name : DESATIVADO" -ForegroundColor Red
+        } catch {
+            Write-Host "[!] Falha ao desativar. O túnel ADB caiu?" -ForegroundColor Red
+        }
     }
     Start-Sleep -Seconds 1
 }
