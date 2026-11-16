@@ -31,19 +31,26 @@ $adbState = & $adbPath get-state 2>$null
 if ($adbState -notmatch "device") {
     Write-Host "`n[!] Celular não detectado via USB." -ForegroundColor Red
     Write-Host "[*] Ative a Depuração USB e conecte o cabo." -ForegroundColor Yellow
+    Write-Host "[*] ATENÇÃO: Olhe a tela do celular e clique em 'Permitir' se aparecer a janela de depuração USB!" -ForegroundColor Magenta
     Write-Host "Pressione ENTER para tentar de novo..." -ForegroundColor White
     Read-Host | Out-Null
     
     $adbState = & $adbPath get-state 2>$null
     if ($adbState -notmatch "device") {
-        Write-Host "[!] Falha na conexão. Verifique o cabo e a autorização." -ForegroundColor Red
+        Write-Host "[!] Falha na conexão. Verifique o cabo e a autorização no celular." -ForegroundColor Red
         Exit
     }
 }
 
-# 3. Pega HWID
+# 3. Pega HWID (Com limpeza forçada de string)
 Write-Host "[*] Coletando Hardware ID..." -ForegroundColor Yellow
-$HWID = (& $adbPath shell settings get secure android_id).Trim()
+$rawHWID = & $adbPath shell settings get secure android_id
+$HWID = ($rawHWID | Out-String).Trim()
+
+if ([string]::IsNullOrEmpty($HWID) -or $HWID -eq "null") {
+    Write-Host "[!] Falha ao obter o Hardware ID. O celular autorizou a depuração USB?" -ForegroundColor Red
+    Exit
+}
 
 # 4. Valida a Key
 Clear-Host
