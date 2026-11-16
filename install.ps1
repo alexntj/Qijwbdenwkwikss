@@ -1,4 +1,4 @@
-# GHOST REMOTE - Windows Edition (Fix de Conexão)
+# GHOST REMOTE - Windows Edition (Fix Túnel ADB)
 Clear-Host
 
 Write-Host "==========================================" -ForegroundColor Cyan
@@ -8,7 +8,6 @@ Start-Sleep -Seconds 1
 
 $adbPath = ".\adb.exe"
 
-# 1. Verifica e baixa o ADB
 if (!(Test-Path $adbPath)) {
     Write-Host "`n[*] Baixando ADB (Platform-Tools)..." -ForegroundColor Yellow
     $url = "https://dl.google.com/android/repository/platform-tools-latest-windows.zip"
@@ -21,7 +20,6 @@ if (!(Test-Path $adbPath)) {
     Remove-Item -Path ".\platform-tools" -Recurse -Force
 }
 
-# 2. Verifica dispositivo
 Write-Host "`n[*] Verificando celular via USB..." -ForegroundColor Yellow
 $adbState = & $adbPath get-state 2>$null
 
@@ -31,13 +29,12 @@ if ($adbState -notmatch "device") {
     Read-Host | Out-Null
     $adbState = & $adbPath get-state 2>$null
     if ($adbState -notmatch "device") {
-        Write-Host "[!] Falha na conexão. Verifique o cabo e a autorização." -ForegroundColor Red
+        Write-Host "[!] Falha na conexão. Verifique o cabo." -ForegroundColor Red
         Exit
     }
 }
 Write-Host "[+] Celular conectado!" -ForegroundColor Green
 
-# 3. Pega o HWID do PC (UUID da Placa-mãe)
 Write-Host "[*] Gerando Hardware ID do PC..." -ForegroundColor Yellow
 $biosUuid = (Get-CimInstance Win32_ComputerSystemProduct).UUID
 if ([string]::IsNullOrEmpty($biosUuid) -or $biosUuid -eq "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF") {
@@ -48,9 +45,8 @@ if ([string]::IsNullOrEmpty($biosUuid) -or $biosUuid -eq "FFFFFFFF-FFFF-FFFF-FFF
 $sha256 = [System.Security.Cryptography.SHA256]::Create()
 $hashBytes = $sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($biosUuid))
 $HWID = ([System.BitConverter]::ToString($hashBytes)).Replace("-", "").Substring(0, 16)
-Write-Host "[+] Hardware ID do PC capturado." -ForegroundColor Green
+Write-Host "[+] Hardware ID capturado." -ForegroundColor Green
 
-# 4. Valida a Key
 Clear-Host
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "             VALIDAÇÃO DE LICENÇA         " -ForegroundColor White
@@ -99,7 +95,6 @@ if ($diff -gt 0) {
     Exit
 }
 
-# 5. Injeção
 Clear-Host
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "             INJEÇÃO DO MÓDULO            " -ForegroundColor White
@@ -116,14 +111,9 @@ if ($INJETADO -ne "s") {
     Exit
 }
 
-# Cria o túnel e testa
-& $adbPath forward --remove-all | Out-Null
-& $adbPath forward tcp:7755 tcp:7755 | Out-Null
-
 $ESTADO = @{}
 1..20 | ForEach-Object { $ESTADO[$_] = 0 }
 
-# 6. Menu Principal
 while ($true) {
     Clear-Host
     Write-Host "==========================================" -ForegroundColor Cyan
@@ -159,14 +149,13 @@ while ($true) {
     $FUNC_OPT = Read-Host "  » Selecione"
 
     if ($FUNC_OPT -eq "99") {
-        Write-Host "`n[!] AVISO: Isso vai desligar tudo e desinstalar o Zayon do celular." -ForegroundColor Red
+        Write-Host "`n[!] AVISO: Isso vai desligar tudo e desinstalar o Zayon." -ForegroundColor Red
         $CONFIRMA = Read-Host "Tem certeza? (s/n)"
         
         if ($CONFIRMA -eq "s") {
             Write-Host "`n[*] Desativando todas as funções..." -ForegroundColor Yellow
-            1..15 | ForEach-Object { 
-                try { Invoke-RestMethod -Uri "http://127.0.0.1:7755/item$_/desativar" -TimeoutSec 1 | Out-Null } catch {}
-            }
+            # Usando CMD direto no celular
+            & cmd.exe /c "$adbPath shell `"for i in 1 2 3 5 6 7 9 10 11 14 15; do curl -s http://127.0.0.1:7755/item`$i/desativar > /dev/null; done`""
 
             Write-Host "[*] Fechando Free Fire..." -ForegroundColor Yellow
             & $adbPath shell am force-stop com.dts.freefireth
@@ -181,7 +170,7 @@ while ($true) {
             & $adbPath shell am force-stop com.zyron
             & $adbPath shell pm uninstall com.zyron
             
-            Write-Host "`n[+] Bypass concluído com sucesso!" -ForegroundColor Green
+            Write-Host "`n[+] Bypass concluído!" -ForegroundColor Green
             Start-Sleep -Seconds 3
             Exit
         }
@@ -207,27 +196,15 @@ while ($true) {
 
     Write-Host "`n[*] Sincronizando com o módulo..." -ForegroundColor Yellow
     
-    # Reforça o túnel pra não cair a conexão
-    & $adbPath forward tcp:7755 tcp:7755 | Out-Null
-
+    # AQUI ESTÁ A MÁGICA: Manda o comando de dentro do próprio celular
     if ($ESTADO[$FUNC_OPT] -eq 0) {
-        # ATIVAR
-        try {
-            $res = Invoke-RestMethod -Uri "http://127.0.0.1:7755/$endpoint" -TimeoutSec 2
-            $ESTADO[$FUNC_OPT] = 1
-            Write-Host "[+] $name : ATIVADO" -ForegroundColor Green
-        } catch {
-            Write-Host "[!] Falha ao ativar. O Free Fire está em partida ou o módulo desconectou?" -ForegroundColor Red
-        }
+        & cmd.exe /c "$adbPath shell `"curl -s http://127.0.0.1:7755/$endpoint`"" | Out-Null
+        $ESTADO[$FUNC_OPT] = 1
+        Write-Host "[+] $name : ATIVADO" -ForegroundColor Green
     } else {
-        # DESATIVAR
-        try {
-            $res = Invoke-RestMethod -Uri "http://127.0.0.1:7755/$endpoint/desativar" -TimeoutSec 2
-            $ESTADO[$FUNC_OPT] = 0
-            Write-Host "[-] $name : DESATIVADO" -ForegroundColor Red
-        } catch {
-            Write-Host "[!] Falha ao desativar. O túnel ADB caiu?" -ForegroundColor Red
-        }
+        & cmd.exe /c "$adbPath shell `"curl -s http://127.0.0.1:7755/$endpoint/desativar`"" | Out-Null
+        $ESTADO[$FUNC_OPT] = 0
+        Write-Host "[-] $name : DESATIVADO" -ForegroundColor Red
     }
     Start-Sleep -Seconds 1
 }
