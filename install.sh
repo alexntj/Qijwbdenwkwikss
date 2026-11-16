@@ -59,6 +59,7 @@ ADB_STATE=$(adb get-state 2>/dev/null | tr -d '\r\n')
 
 if [ "$ADB_STATE" == "device" ]; then
     echo -e "${GREEN}[+] Sistema ADB já conectado.${NC}"
+    TARGET_IP=$(adb devices | grep -v "List" | grep "device" | head -n1 | awk '{print $1}' | cut -d':' -f1)
     sleep 1
 else
     echo -e "${WHITE}Etapa 1: Conexão com o Dispositivo${NC}"
@@ -84,12 +85,13 @@ else
         echo -e "${RED}[!] Falha na conexão. Verifique os dados e tente novamente.${NC}"
         exit 1
     fi
+    # Pega o IP que o usuário digitou (remove a porta)
+    TARGET_IP=$(echo $CONN_ADDR | cut -d':' -f1)
 fi
 
-# Cria o túnel apenas uma vez ao iniciar
-echo -e "${YELLOW}[*] Criando túnel ADB...${NC}"
+# Cria o Túnel Reverso (Manda o ADB escutar no celular de controle e redirecionar pro alvo)
+echo -e "${YELLOW}[*] Criando túnel ADB (isso pode levar 1 seg)...${NC}"
 adb forward tcp:7755 tcp:7755
-TARGET_IP="127.0.0.1"
 
 HWID=$(adb shell settings get secure android_id 2>/dev/null | tr -d '\r\n')
 if [ -z "$HWID" ] || [ "$HWID" == "null" ]; then
@@ -146,7 +148,7 @@ clear
 echo -e "${PURPLE}==========================================${NC}"
 echo -e "${WHITE}             INJEÇÃO DO MÓDULO            ${NC}"
 echo -e "${PURPLE}==========================================${NC}\n"
-echo -e "${WHITE}Abra o Zayon no celular, conecte o ADB e clique em INJETAR."
+echo -e "${WHITE}Abra o Amazon no celular alvo, clique em INJETAR e feche o app."
 echo -e "Após abrir o Free Fire, retorne a esta tela.${NC}\n"
 echo -n "Módulo injetado e FF aberto? (s/n): "
 read -r INJETADO < /dev/tty
@@ -185,7 +187,7 @@ while true; do
     echo -e "${CYAN}└────────────────────────────────────────┘${NC}"
     
     echo -e "\n${RED}┌── DESCONECTAR / LIMPAR (BYPASS) ───────┐${NC}"
-    echo -e "  [99] Limpar arquivos e desinstalar Zayon"
+    echo -e "  [99] Limpar arquivos e desinstalar Amazon"
     echo -e "${RED}└────────────────────────────────────────┘${NC}"
 
     echo -e "\n  [0] Encerrar Sessão"
@@ -194,14 +196,14 @@ while true; do
     read -r FUNC_OPT < /dev/tty
 
     if [ "$FUNC_OPT" == "99" ]; then
-        echo -e "\n${RED}[!] AVISO: Isso vai desligar tudo e desinstalar o Zayon.${NC}"
+        echo -e "\n${RED}[!] AVISO: Isso vai desligar tudo e desinstalar o app Amazon.${NC}"
         echo -n "Tem certeza? (s/n): "
         read -r CONFIRMA < /dev/tty
         
         if [ "$CONFIRMA" == "s" ]; then
             echo -e "\n${YELLOW}[*] Desativando todas as funções...${NC}"
             for i in 1 2 3 5 6 7 9 10 11 14 15; do
-                curl -s -H "Connection: close" --max-time 1 "http://$TARGET_IP:7755/item$i/desativar" > /dev/null
+                curl -s -H "Connection: close" --max-time 1 "http://127.0.0.1:7755/item$i/desativar" > /dev/null
             done
 
             echo -e "${YELLOW}[*] Fechando o Free Fire...${NC}"
@@ -210,7 +212,7 @@ while true; do
             echo -e "${YELLOW}[*] Apagando os arquivos do cheat...${NC}"
             adb shell "rm -f /sdcard/Android/data/com.dts.freefireth/files/Assembly-CSharp-patch.bytes /sdcard/Android/data/com.dts.freefireth/files/xyz.guard /sdcard/Android/data/com.dts.freefireth/files/localConfig.json /sdcard/Android/data/com.dts.freefireth/files/auth.txt /sdcard/Android/data/com.dts.freefireth/files/ffrtc_log.txt /sdcard/Android/data/com.dts.freefireth/files/ShaderStripSettings /sdcard/Android/data/com.dts.freefireth/files/reportnew.db"
             
-            echo -e "${YELLOW}[*] Desinstalando o app Zayon...${NC}"
+            echo -e "${YELLOW}[*] Desinstalando o app Amazon...${NC}"
             adb shell am force-stop com.zyron
             adb shell pm uninstall com.zyron
             
@@ -236,21 +238,18 @@ while true; do
         *) continue ;;
     esac
 
-    # Reforça o túnel ADB antes de mandar o comando (evita que caia no meio da partida)
-    adb forward tcp:7755 tcp:7755 > /dev/null 2>&1
-
     echo -e "\n${YELLOW}[*] Sincronizando...${NC}"
     
     if [ "${ESTADO[$FUNC_OPT]}" -eq 0 ]; then
-        curl -s -H "Connection: close" --max-time 2 "http://$TARGET_IP:7755/$ENDPOINT" > /dev/null
+        curl -s -H "Connection: close" --max-time 2 "http://127.0.0.1:7755/$ENDPOINT" > /dev/null
         ESTADO[$FUNC_OPT]=1
         echo -e "${GREEN}[+] $NAME: ATIVADO${NC}"
     else
-        curl -s -H "Connection: close" --max-time 2 "http://$TARGET_IP:7755/$ENDPOINT/desativar" > /dev/null
+        curl -s -H "Connection: close" --max-time 2 "http://127.0.0.1:7755/$ENDPOINT/desativar" > /dev/null
         ESTADO[$FUNC_OPT]=0
         echo -e "${RED}[-] $NAME: DESATIVADO${NC}"
     fi
-    sleep 1
+    sleep 1.5
 done
 GHOST_EOF
 
