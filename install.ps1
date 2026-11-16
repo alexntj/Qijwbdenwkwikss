@@ -1,4 +1,4 @@
-# GHOST REMOTE - Windows Edition
+# GHOST REMOTE - Windows Edition (HWID Fixo via BIOS)
 Clear-Host
 
 Write-Host "==========================================" -ForegroundColor Cyan
@@ -37,19 +37,24 @@ if ($adbState -notmatch "device") {
 }
 Write-Host "[+] Celular conectado!" -ForegroundColor Green
 
-# 3. Pega HWID (Do jeito bruto pro Windows)
-Write-Host "[*] Coletando Hardware ID..." -ForegroundColor Yellow
-$HWID = cmd /c "$adbPath shell settings get secure android_id 2>nul"
-$HWID = $HWID.Trim() -replace "`r", "" -replace "`n", ""
+# 3. Pega o HWID do PC (UUID da Placa-mãe)
+Write-Host "[*] Gerando Hardware ID do PC..." -ForegroundColor Yellow
 
-if ([string]::IsNullOrEmpty($HWID) -or $HWID -eq "null") {
-    Write-Host "[!] ERRO CRITICO: O Windows nao conseguiu ler o ID do celular." -ForegroundColor Red
-    Write-Host "[DEBUG] O comando retornou: '$HWID'" -ForegroundColor DarkGray
-    Write-Host "Certifique-se de que a Depuracao USB esta ATIVA e a tela do celular foi DESBLOQUEADA." -ForegroundColor Yellow
-    Exit
+# Pega o UUID da BIOS/Placa-mãe
+$biosUuid = (Get-CimInstance Win32_ComputerSystemProduct).UUID
+if ([string]::IsNullOrEmpty($biosUuid) -or $biosUuid -eq "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF") {
+    # Se falhar, usa o ID do processador + nome do PC como fallback
+    $cpuId = (Get-CimInstance Win32_Processor).ProcessorId
+    $pcName = $env:COMPUTERNAME
+    $biosUuid = "$cpuId-$pcName"
 }
 
-Write-Host "[+] Hardware ID capturado com sucesso." -ForegroundColor Green
+# Cria uma hash limpa do ID (pra ficar parecido com o Android ID)
+$sha256 = [System.Security.Cryptography.SHA256]::Create()
+$hashBytes = $sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($biosUuid))
+$HWID = ([System.BitConverter]::ToString($hashBytes)).Replace("-", "").Substring(0, 16)
+
+Write-Host "[+] Hardware ID do PC capturado: $HWID" -ForegroundColor Green
 
 # 4. Valida a Key
 Clear-Host
