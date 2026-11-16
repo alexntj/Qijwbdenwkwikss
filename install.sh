@@ -86,11 +86,9 @@ else
     fi
 fi
 
-# O PULO DO GATO: Faz a ponte pro celular alvo!
-echo -e "${YELLOW}[*] Criando túnel ADB para o módulo (Porta 7755)...${NC}"
+# Cria o túnel apenas uma vez ao iniciar
+echo -e "${YELLOW}[*] Criando túnel ADB...${NC}"
 adb forward tcp:7755 tcp:7755
-
-# Agora apontamos pra localhost, porque o tunel resolve o resto
 TARGET_IP="127.0.0.1"
 
 HWID=$(adb shell settings get secure android_id 2>/dev/null | tr -d '\r\n')
@@ -148,8 +146,8 @@ clear
 echo -e "${PURPLE}==========================================${NC}"
 echo -e "${WHITE}             INJEÇÃO DO MÓDULO            ${NC}"
 echo -e "${PURPLE}==========================================${NC}\n"
-echo -e "${WHITE}No CELULAR ALVO, abra o Zayon, conecte o ADB e clique em INJETAR."
-echo -e "Após abrir o Free Fire no celular alvo, retorne a esta tela.${NC}\n"
+echo -e "${WHITE}Abra o Zayon no celular, conecte o ADB e clique em INJETAR."
+echo -e "Após abrir o Free Fire, retorne a esta tela.${NC}\n"
 echo -n "Módulo injetado e FF aberto? (s/n): "
 read -r INJETADO < /dev/tty
 
@@ -196,7 +194,7 @@ while true; do
     read -r FUNC_OPT < /dev/tty
 
     if [ "$FUNC_OPT" == "99" ]; then
-        echo -e "\n${RED}[!] AVISO: Isso vai desligar tudo no celular alvo e desinstalar o Zayon.${NC}"
+        echo -e "\n${RED}[!] AVISO: Isso vai desligar tudo e desinstalar o Zayon.${NC}"
         echo -n "Tem certeza? (s/n): "
         read -r CONFIRMA < /dev/tty
         
@@ -237,6 +235,9 @@ while true; do
         0) clear; exit 0 ;;
         *) continue ;;
     esac
+
+    # Reforça o túnel ADB antes de mandar o comando (evita que caia no meio da partida)
+    adb forward tcp:7755 tcp:7755 > /dev/null 2>&1
 
     echo -e "\n${YELLOW}[*] Sincronizando...${NC}"
     
