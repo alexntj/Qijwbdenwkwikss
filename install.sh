@@ -64,7 +64,6 @@ else
     echo -e "${WHITE}Etapa 1: Conexão com o Dispositivo${NC}"
     echo -e "${YELLOW}O ADB não está conectado. Vamos configurar agora.${NC}\n"
     
-    # Lendo o input de forma forçada pra não bugar no Termux
     echo -n "IP:PORTA de PAREAMENTO: "
     read -r PAIR_ADDR < /dev/tty
     
@@ -180,10 +179,56 @@ while true; do
     echo -e "  [11] No Recoil (Real)          $(status 11)"
     echo -e "${CYAN}└────────────────────────────────────────┘${NC}"
     
+    echo -e "\n${RED}┌── DESCONECTAR / LIMPAR (BYPASS) ───────┐${NC}"
+    echo -e "  [99] Limpar arquivos e desinstalar Zayon"
+    echo -e "${RED}└────────────────────────────────────────┘${NC}"
+
     echo -e "\n  [0] Encerrar Sessão"
     echo -e ""
     echo -n "  » Selecione: "
     read -r FUNC_OPT < /dev/tty
+
+    if [ "$FUNC_OPT" == "99" ]; then
+        echo -e "\n${RED}[!] AVISO: Isso vai desligar todas as funções, limpar os arquivos e desinstalar o Zayon.${NC}"
+        echo -n "Tem certeza que deseja continuar? (s/n): "
+        read -r CONFIRMA < /dev/tty
+        
+        if [ "$CONFIRMA" == "s" ]; then
+            echo -e "\n${YELLOW}[*] Desativando todas as funções do módulo...${NC}"
+            curl -s --max-time 1 "http://127.0.0.1:7755/item1/desativar" > /dev/null
+            curl -s --max-time 1 "http://127.0.0.1:7755/item2/desativar" > /dev/null
+            curl -s --max-time 1 "http://127.0.0.1:7755/item3/desativar" > /dev/null
+            curl -s --max-time 1 "http://127.0.0.1:7755/item5/desativar" > /dev/null
+            curl -s --max-time 1 "http://127.0.0.1:7755/item6/desativar" > /dev/null
+            curl -s --max-time 1 "http://127.0.0.1:7755/item7/desativar" > /dev/null
+            curl -s --max-time 1 "http://127.0.0.1:7755/item9/desativar" > /dev/null
+            curl -s --max-time 1 "http://127.0.0.1:7755/item10/desativar" > /dev/null
+            curl -s --max-time 1 "http://127.0.0.1:7755/item11/desativar" > /dev/null
+            curl -s --max-time 1 "http://127.0.0.1:7755/item14/desativar" > /dev/null
+            curl -s --max-time 1 "http://127.0.0.1:7755/item15/desativar" > /dev/null
+
+            echo -e "${YELLOW}[*] Fechando o Free Fire...${NC}"
+            adb shell am force-stop com.dts.freefireth
+            
+            echo -e "${YELLOW}[*] Apagando os arquivos do cheat...${NC}"
+            adb shell "rm -f /sdcard/Android/data/com.dts.freefireth/files/Assembly-CSharp-patch.bytes /sdcard/Android/data/com.dts.freefireth/files/xyz.guard /sdcard/Android/data/com.dts.freefireth/files/localConfig.json /sdcard/Android/data/com.dts.freefireth/files/auth.txt /sdcard/Android/data/com.dts.freefireth/files/ffrtc_log.txt /sdcard/Android/data/com.dts.freefireth/files/ShaderStripSettings /sdcard/Android/data/com.dts.freefireth/files/reportnew.db"
+            
+            echo -e "${YELLOW}[*] Fechando o Zayon...${NC}"
+            adb shell am force-stop com.zyron
+            
+            echo -e "${YELLOW}[*] Desinstalando o app Zayon...${NC}"
+            adb shell pm uninstall com.zyron
+            
+            echo -e "\n${GREEN}[+] Bypass concluído com sucesso!${NC}"
+            echo -e "${WHITE}Funções desligadas, arquivos limpos e Zayon desinstalado.${NC}"
+            sleep 3
+            exit 0
+        else
+            echo -e "\n${GREEN}[+] Operação cancelada.${NC}"
+            sleep 1
+            continue
+        fi
+    fi
 
     case $FUNC_OPT in
         1) ENDPOINT="item1"; NAME="HS Cabeça" ;;
