@@ -61,34 +61,38 @@ if [ "$ADB_STATE" == "device" ]; then
     echo -e "${GREEN}[+] Sistema ADB já conectado.${NC}"
     sleep 1
 else
-    echo -e "${WHITE}Etapa 1: Conexão com o Dispositivo${NC}"
-    echo -e "${YELLOW}O ADB não está conectado. Vamos configurar agora.${NC}\n"
-    
-    # Loop para garantir que ele peça os dados até conectar
-    while [ "$(adb get-state 2>/dev/null | tr -d '\r\n')" != "device" ]; do
+    while true; do
+        clear
+        echo -e "${WHITE}Etapa 1: Conexão com o Dispositivo${NC}"
+        echo -e "${YELLOW}O ADB não está conectado. Vamos configurar agora.${NC}\n"
+        
         read -p "IP:PORTA de PAREAMENTO: " PAIR_ADDR
         read -p "Código de 6 dígitos: " PAIR_CODE
+        
         echo -e "\n${YELLOW}[*] Pareando dispositivos...${NC}"
-        adb pair $PAIR_ADDR $PAIR_CODE > /dev/null 2>&1
+        adb pair $PAIR_ADDR $PAIR_CODE
         
         read -p "IP:PORTA de CONEXÃO: " CONN_ADDR
         echo -e "${YELLOW}[*] Estabelecendo conexão segura...${NC}"
-        adb connect $CONN_ADDR > /dev/null 2>&1
-        sleep 1
+        adb connect $CONN_ADDR
         
-        if [ "$(adb get-state 2>/dev/null | tr -d '\r\n')" != "device" ]; then
-            echo -e "${RED}[!] Falha na conexão. Verifique os dados e tente novamente.${NC}\n"
+        # Verifica se a conexão foi bem sucedida
+        if [ "$(adb get-state 2>/dev/null | tr -d '\r\n')" == "device" ]; then
+            echo -e "${GREEN}[+] Conectado com sucesso!${NC}"
+            sleep 1
+            break
+        else
+            echo -e "\n${RED}[!] Falha na conexão. Verifique os dados e tente novamente.${NC}"
+            read -p "Pressione ENTER para tentar novamente..."
         fi
     done
-    echo -e "${GREEN}[+] Conectado com sucesso!${NC}"
 fi
 
 HWID=$(adb shell settings get secure android_id 2>/dev/null | tr -d '\r\n')
-while [ -z "$HWID" ] || [ "$HWID" == "null" ]; do
-    echo -e "${RED}[!] Não foi possível obter o Hardware ID.${NC}"
-    read -p "Pressione ENTER para tentar novamente..."
-    HWID=$(adb shell settings get secure android_id 2>/dev/null | tr -d '\r\n')
-done
+if [ -z "$HWID" ] || [ "$HWID" == "null" ]; then
+    echo -e "${RED}[!] Falha ao obter o Hardware ID. Verifique o ADB.${NC}"
+    exit 1
+fi
 
 clear
 echo -e "${PURPLE}==========================================${NC}"
