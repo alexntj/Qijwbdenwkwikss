@@ -64,13 +64,19 @@ else
     echo -e "${WHITE}Etapa 1: Conexão com o Dispositivo${NC}"
     echo -e "${YELLOW}O ADB não está conectado. Vamos configurar agora.${NC}\n"
     
-    read -p "IP:PORTA de PAREAMENTO: " PAIR_ADDR
-    read -p "Código de 6 dígitos: " PAIR_CODE
+    # Lendo o input de forma forçada pra não bugar no Termux
+    echo -n "IP:PORTA de PAREAMENTO: "
+    read -r PAIR_ADDR < /dev/tty
+    
+    echo -n "Código de 6 dígitos: "
+    read -r PAIR_CODE < /dev/tty
     
     echo -e "\n${YELLOW}[*] Pareando dispositivos...${NC}"
     adb pair $PAIR_ADDR $PAIR_CODE
     
-    read -p "IP:PORTA de CONEXÃO: " CONN_ADDR
+    echo -n "IP:PORTA de CONEXÃO: "
+    read -r CONN_ADDR < /dev/tty
+    
     echo -e "${YELLOW}[*] Estabelecendo conexão segura...${NC}"
     adb connect $CONN_ADDR
     sleep 1
@@ -92,7 +98,9 @@ echo -e "${PURPLE}==========================================${NC}"
 echo -e "${WHITE}             VALIDAÇÃO DE LICENÇA         ${NC}"
 echo -e "${PURPLE}==========================================${NC}\n"
 
-read -p "Insira sua Key de Acesso: " USER_KEY
+echo -n "Insira sua Key de Acesso: "
+read -r USER_KEY < /dev/tty
+
 echo -e "\n${YELLOW}[*] Comunicando com o servidor...${NC}"
 
 K_API=$(echo "aHR0cHM6Ly9nZXJhZG9yLWtleXMuZGUuZGVwbGV4by5jb20vYXBpL3ZhbGlkYXRl" | base64 -d)
@@ -136,7 +144,9 @@ echo -e "${WHITE}             INJEÇÃO DO MÓDULO            ${NC}"
 echo -e "${PURPLE}==========================================${NC}\n"
 echo -e "${WHITE}Abra o Zayon, conecte o ADB e clique em INJETAR."
 echo -e "Após abrir o Free Fire, retorne a esta tela.${NC}\n"
-read -p "Módulo injetado e FF aberto? (s/n): " INJETADO
+echo -n "Módulo injetado e FF aberto? (s/n): "
+read -r INJETADO < /dev/tty
+
 if [ "$INJETADO" != "s" ]; then
     echo -e "${RED}[!] Operação cancelada.${NC}"
     exit 1
@@ -172,7 +182,8 @@ while true; do
     
     echo -e "\n  [0] Encerrar Sessão"
     echo -e ""
-    read -p "  » Selecione: " FUNC_OPT
+    echo -n "  » Selecione: "
+    read -r FUNC_OPT < /dev/tty
 
     case $FUNC_OPT in
         1) ENDPOINT="item1"; NAME="HS Cabeça" ;;
